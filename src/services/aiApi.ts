@@ -1,0 +1,47 @@
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Server error ${res.status}`);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+export interface ImageAnalysisResult {
+  name: string;
+  estimatedGrams: number;
+  nutritionPer100g: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+}
+
+export function analyzeImage(
+  imageBase64: string,
+  mimeType: string,
+): Promise<ImageAnalysisResult> {
+  return post('/api/analyze-image', { imageBase64, mimeType });
+}
+
+export interface FoodSearchResult {
+  name: string;
+  servingSize: number;
+  nutritionPer100g: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+}
+
+export function searchFood(query: string): Promise<FoodSearchResult[]> {
+  return post('/api/search-food', { query });
+}

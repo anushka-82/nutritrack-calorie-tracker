@@ -1,0 +1,75 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const GEMINI_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+function parseJSON<T>(text: string, isArray: boolean): T {
+  const cleaned = text.replace(/```json|```/g, '').trim();
+  const m = cleaned.match(isArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
+  if (!m) throw new Error('Could not parse nutrition data from AI response');
+  return JSON.parse(m[0]) as T;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const GEMINI_KEY = process.env.GEMINI_API_KEY;
+  if (!GEMINI_KEY) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server' });
+  }
+
+  const { query } = req.body as { query?: string };
+  if (!query?.trim()) {
+    return res.status(400).json({ error: 'query is required' });
+  }
+
+  try {
+    const geminiRes = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `Provide nutritional information for: "${query}"
+
+Return ONLY a valid JSON array with 1-3 options (different preparations or sizes):
+[
+  {
+    "name": "specific dish name",
+    "servingSize": typical_serving_in_grams,
+    "nutritionPer100g": {
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
+    }
+  }
+]
+
+Use authentic values for Indian dishes (homemade recipes). All values must be plain numbers. No markdown or extra text.`,
+              },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.1 },
+      }),
+    });
+
+    if (!geminiRes.ok) {
+      const err = (await geminiRes.json().catch(() => ({}))) as { error?: { message?: string } };
+      return res.status(502).json({ error: err.error?.message ?? `Gemini error ${geminiRes.status}` });
+    }
+
+    const data = (await geminiRes.json()) as {
+      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+    };
+    const text = data.candidates[0].content.parts[0].text;
+    return res.json(parseJSON(text, true));
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });
+  }
+}
