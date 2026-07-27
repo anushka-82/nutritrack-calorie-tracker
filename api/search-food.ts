@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
 function parseJSON<T>(text: string, isArray: boolean): T {
   const cleaned = text.replace(/```json|```/g, '').trim();
@@ -15,9 +15,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server' });
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_KEY) {
+    return res.status(500).json({ error: 'GROQ_API_KEY is not configured on the server' });
   }
 
   const { query } = req.body as { query?: string };
@@ -26,15 +26,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const geminiRes = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+    const groqRes = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_KEY}`,
+      },
       body: JSON.stringify({
-        contents: [
+        model: TEXT_MODEL,
+        max_tokens: 1024,
+        temperature: 0.1,
+        messages: [
           {
-            parts: [
-              {
-                text: `Provide nutritional information for: "${query}"
+            role: 'user',
+            content: `Provide nutritional information for: "${query}"
 
 Return ONLY a valid JSON array with 1-3 options (different preparations or sizes):
 [
@@ -51,23 +56,18 @@ Return ONLY a valid JSON array with 1-3 options (different preparations or sizes
 ]
 
 Use authentic values for Indian dishes (homemade recipes). All values must be plain numbers. No markdown or extra text.`,
-              },
-            ],
           },
         ],
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.1 },
       }),
     });
 
-    if (!geminiRes.ok) {
-      const err = (await geminiRes.json().catch(() => ({}))) as { error?: { message?: string } };
-      return res.status(502).json({ error: err.error?.message ?? `Gemini error ${geminiRes.status}` });
+    if (!groqRes.ok) {
+      const err = (await groqRes.json().catch(() => ({}))) as { error?: { message?: string } };
+      return res.status(502).json({ error: err.error?.message ?? `Groq error ${groqRes.status}` });
     }
 
-    const data = (await geminiRes.json()) as {
-      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
-    };
-    const text = data.candidates[0].content.parts[0].text;
+    const data = (await groqRes.json()) as { choices: Array<{ message: { content: string } }> };
+    const text = data.choices[0].message.content;
     return res.json(parseJSON(text, true));
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });

@@ -6,61 +6,57 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT ?? 3001;
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+const GROQ_KEY = process.env.GROQ_API_KEY;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
-app.use(express.json({ limit: '15mb' })); // images need headroom
+app.use(express.json({ limit: '15mb' }));
 
-// ── Gemini helpers ─────────────────────────────────────────────────────────
+async function callGroq(messages: unknown[], model: string, maxTokens = 1024): Promise<string> {
+  if (!GROQ_KEY) throw new Error('GROQ_API_KEY is not set on the server');
 
-async function callGemini(parts: unknown[]): Promise<string> {
-  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY is not set on the server');
-
-  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+  const res = await fetch(GROQ_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.1 },
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_KEY}`,
+    },
+    body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages }),
   });
 
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(err.error?.message ?? `Gemini error ${res.status}`);
+    throw new Error(err.error?.message ?? `Groq error ${res.status}`);
   }
 
-  const data = (await res.json()) as {
-    candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
-  };
-  return data.candidates[0].content.parts[0].text;
+  const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+  return data.choices[0].message.content;
 }
 
 function parseJSON<T>(text: string, isArray: boolean): T {
   const cleaned = text.replace(/```json|```/g, '').trim();
   const m = cleaned.match(isArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
-  if (!m) throw new Error('Could not parse nutrition data from AI response');
+  if (!m) throw new Error('Could not parse nutrition data');
   return JSON.parse(m[0]) as T;
 }
 
-// ── API routes ─────────────────────────────────────────────────────────────
-
 app.post('/api/analyze-image', async (req, res) => {
   try {
-    const { imageBase64, mimeType } = req.body as {
-      imageBase64?: string;
-      mimeType?: string;
-    };
+    const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
     if (!imageBase64 || !mimeType) {
       res.status(400).json({ error: 'imageBase64 and mimeType are required' });
       return;
     }
 
-    const text = await callGemini([
-      { inline_data: { mime_type: mimeType, data: imageBase64 } },
+    const text = await callGroq([
       {
-        text: `Identify the food in this image and provide nutritional data.
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+          {
+            type: 'text',
+            text: `Identify the food in this image and provide nutritional data.
 
 Return ONLY valid JSON, no markdown or extra text:
 {
@@ -75,8 +71,10 @@ Return ONLY valid JSON, no markdown or extra text:
 }
 
 Use authentic values for Indian dishes. Estimate portion weight from visual cues. All values must be plain numbers.`,
+          },
+        ],
       },
-    ]);
+    ], VISION_MODEL, 512);
 
     res.json(parseJSON(text, false));
   } catch (err) {
@@ -92,11 +90,12 @@ app.post('/api/search-food', async (req, res) => {
       return;
     }
 
-    const text = await callGemini([
+    const text = await callGroq([
       {
-        text: `Provide nutritional information for: "${query}"
+        role: 'user',
+        content: `Provide nutritional information for: "${query}"
 
-Return ONLY a valid JSON array with 1-3 options (different preparations or sizes):
+Return ONLY a valid JSON array with 1-3 options:
 [
   {
     "name": "specific dish name",
@@ -112,15 +111,13 @@ Return ONLY a valid JSON array with 1-3 options (different preparations or sizes
 
 Use authentic values for Indian dishes (homemade recipes). All values must be plain numbers. No markdown or extra text.`,
       },
-    ]);
+    ], TEXT_MODEL);
 
     res.json(parseJSON(text, true));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });
   }
 });
-
-// ── Serve built frontend in production ─────────────────────────────────────
 
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../dist');
@@ -130,7 +127,5 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
   console.log(`✅  Server running at http://localhost:${PORT}`);
-  if (!GEMINI_KEY) {
-    console.warn('⚠️   GEMINI_API_KEY is not set — add it to your .env file');
-  }
+  if (!GROQ_KEY) console.warn('⚠️   GROQ_API_KEY is not set — add it to your .env file');
 });

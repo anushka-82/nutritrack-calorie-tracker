@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 function parseJSON<T>(text: string, isArray: boolean): T {
   const cleaned = text.replace(/```json|```/g, '').trim();
@@ -15,9 +15,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server' });
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_KEY) {
+    return res.status(500).json({ error: 'GROQ_API_KEY is not configured on the server' });
   }
 
   const { imageBase64, mimeType } = req.body as {
@@ -30,15 +30,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const geminiRes = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+    const groqRes = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_KEY}`,
+      },
       body: JSON.stringify({
-        contents: [
+        model: VISION_MODEL,
+        max_tokens: 512,
+        temperature: 0.1,
+        messages: [
           {
-            parts: [
-              { inline_data: { mime_type: mimeType, data: imageBase64 } },
+            role: 'user',
+            content: [
               {
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+              },
+              {
+                type: 'text',
                 text: `Identify the food in this image and provide nutritional data.
 
 Return ONLY valid JSON, no markdown or extra text:
@@ -58,19 +69,16 @@ Use authentic values for Indian dishes. Estimate portion weight from visual cues
             ],
           },
         ],
-        generationConfig: { maxOutputTokens: 512, temperature: 0.1 },
       }),
     });
 
-    if (!geminiRes.ok) {
-      const err = (await geminiRes.json().catch(() => ({}))) as { error?: { message?: string } };
-      return res.status(502).json({ error: err.error?.message ?? `Gemini error ${geminiRes.status}` });
+    if (!groqRes.ok) {
+      const err = (await groqRes.json().catch(() => ({}))) as { error?: { message?: string } };
+      return res.status(502).json({ error: err.error?.message ?? `Groq error ${groqRes.status}` });
     }
 
-    const data = (await geminiRes.json()) as {
-      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
-    };
-    const text = data.candidates[0].content.parts[0].text;
+    const data = (await groqRes.json()) as { choices: Array<{ message: { content: string } }> };
+    const text = data.choices[0].message.content;
     return res.json(parseJSON(text, false));
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Analysis failed' });
