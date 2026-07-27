@@ -2,8 +2,10 @@ import { useState } from 'react';
 import type { UserProfile, DailyGoals } from '../types';
 import { calcGoals } from '../hooks/useUserProfile';
 
+type ProfileData = Omit<UserProfile, 'id' | 'colorIndex'>;
+
 interface Props {
-  onComplete: (profile: UserProfile) => void;
+  onComplete: (profile: ProfileData) => void;
 }
 
 type Step = 'identity' | 'body' | 'goal' | 'summary';
@@ -25,7 +27,7 @@ export function Onboarding({ onComplete }: Props) {
   const [weight, setWeight] = useState('');
   const [goal, setGoal] = useState<'lose' | 'maintain' | 'gain'>('maintain');
 
-  const profile: UserProfile = {
+  const profile: ProfileData = {
     name: name.trim() || 'User',
     age: parseInt(age) || 25,
     sex,

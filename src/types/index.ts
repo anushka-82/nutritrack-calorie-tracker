@@ -65,10 +65,16 @@ export interface PendingFood {
 }
 
 export interface UserProfile {
+  id: string;
   name: string;
   age: number;
   sex: 'male' | 'female';
   heightCm: number;
   weightKg: number;
   goal: 'lose' | 'maintain' | 'gain';
+  colorIndex: number;
 }
+
+export const PROFILE_COLORS = [
+  '#10b981', '#3b82f6', '#8b5cf6', '#f97316', '#f43f5e', '#14b8a6',
+];
