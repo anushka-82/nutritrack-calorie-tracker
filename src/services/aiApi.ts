@@ -47,6 +47,7 @@ export function searchFood(query: string): Promise<FoodSearchResult[]> {
 }
 
 export interface FoodSuggestion {
+  meal: string;
   name: string;
   reason: string;
   servingSize: number;
@@ -64,7 +65,7 @@ export function suggestFoods(params: {
   remainingCarbs: number;
   remainingFat: number;
   goal: string;
-  nextMeal: string;
+  remainingMeals: string[];
 }): Promise<FoodSuggestion[]> {
   return post('/api/suggest-foods', params);
 }

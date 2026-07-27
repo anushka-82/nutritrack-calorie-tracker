@@ -170,6 +170,7 @@ export default function App() {
             totals={totals}
             goals={goals}
             goal={profile.goal}
+            loggedItems={items}
             onAdd={handleAdd}
             onError={(msg) => showToast(msg, 'error')}
           />

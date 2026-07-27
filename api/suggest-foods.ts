@@ -21,15 +21,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'GROQ_API_KEY is not configured on the server' });
   }
 
-  const { remainingCalories, remainingProtein, remainingCarbs, remainingFat, goal, nextMeal } =
+  const { remainingCalories, remainingProtein, remainingCarbs, remainingFat, goal, remainingMeals } =
     req.body as {
       remainingCalories?: number;
       remainingProtein?: number;
       remainingCarbs?: number;
       remainingFat?: number;
       goal?: string;
-      nextMeal?: string;
+      remainingMeals?: string[];
     };
+
+  const meals = remainingMeals && remainingMeals.length > 0 ? remainingMeals : ['snack', 'dinner'];
+  const totalMacrosPerMeal = Math.round((remainingCalories ?? 0) / meals.length);
 
   try {
     const groqRes = await fetch(GROQ_URL, {
@@ -40,26 +43,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         model: TEXT_MODEL,
-        max_tokens: 1024,
+        max_tokens: 1200,
         temperature: 0.4,
         messages: [
           {
             role: 'user',
-            content: `Suggest 4 foods for someone tracking their diet.
+            content: `Suggest foods for someone's remaining meals today.
 
-Remaining macros for today:
+Total remaining macros for today:
 - Calories: ${remainingCalories} kcal
 - Protein: ${remainingProtein}g
 - Carbs: ${remainingCarbs}g
 - Fat: ${remainingFat}g
 - Goal: ${goal} (lose = weight loss, maintain = maintenance, gain = muscle gain)
-- Next meal: ${nextMeal}
 
-Return ONLY a valid JSON array of 4 suggestions. Include Indian dishes where appropriate:
+Remaining meals to plan: ${meals.join(', ')}
+Target ~${totalMacrosPerMeal} kcal per meal.
+
+Suggest 1-2 foods per meal. Include Indian dishes where appropriate.
+
+Return ONLY a valid JSON array:
 [
   {
+    "meal": "one of: ${meals.join(', ')}",
     "name": "food name",
-    "reason": "one short sentence why this fits their remaining macros",
+    "reason": "one short sentence why this fits",
     "servingSize": typical_serving_in_grams,
     "nutritionPer100g": {
       "calories": number,
