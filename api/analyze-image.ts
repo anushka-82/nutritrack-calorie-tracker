@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const VISION_MODEL = 'llama-3.2-90b-vision-preview';
 
 function parseJSON<T>(text: string, isArray: boolean): T {
   const cleaned = text.replace(/```json|```/g, '').trim();
