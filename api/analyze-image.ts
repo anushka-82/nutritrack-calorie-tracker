@@ -4,7 +4,8 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const VISION_MODEL = 'qwen/qwen3.6-27b';
 
 function parseJSON<T>(text: string, isArray: boolean): T {
-  const cleaned = text.replace(/```json|```/g, '').trim();
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const cleaned = stripped.replace(/```json|```/g, '').trim();
   const m = cleaned.match(isArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
   if (!m) throw new Error('Could not parse nutrition data from AI response');
   return JSON.parse(m[0]) as T;
@@ -38,8 +39,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         model: VISION_MODEL,
-        max_tokens: 512,
+        max_tokens: 1024,
         temperature: 0.1,
+        reasoning_effort: 'none',
         messages: [
           {
             role: 'user',

@@ -13,7 +13,7 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
 app.use(express.json({ limit: '15mb' }));
 
-async function callGroq(messages: unknown[], model: string, maxTokens = 1024): Promise<string> {
+async function callGroq(messages: unknown[], model: string, maxTokens = 1024, extraParams: Record<string, unknown> = {}): Promise<string> {
   if (!GROQ_KEY) throw new Error('GROQ_API_KEY is not set on the server');
 
   const res = await fetch(GROQ_URL, {
@@ -22,7 +22,7 @@ async function callGroq(messages: unknown[], model: string, maxTokens = 1024): P
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${GROQ_KEY}`,
     },
-    body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages, ...extraParams }),
   });
 
   if (!res.ok) {
@@ -35,7 +35,8 @@ async function callGroq(messages: unknown[], model: string, maxTokens = 1024): P
 }
 
 function parseJSON<T>(text: string, isArray: boolean): T {
-  const cleaned = text.replace(/```json|```/g, '').trim();
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const cleaned = stripped.replace(/```json|```/g, '').trim();
   const m = cleaned.match(isArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
   if (!m) throw new Error('Could not parse nutrition data');
   return JSON.parse(m[0]) as T;
@@ -74,7 +75,7 @@ Use authentic values for Indian dishes. Estimate portion weight from visual cues
           },
         ],
       },
-    ], VISION_MODEL, 512);
+    ], VISION_MODEL, 1024, { reasoning_effort: 'none' });
 
     res.json(parseJSON(text, false));
   } catch (err) {
