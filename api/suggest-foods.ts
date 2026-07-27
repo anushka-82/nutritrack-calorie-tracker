@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const VISION_MODEL = 'qwen/qwen3.6-27b';
+const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
-function parseJSON<T>(text: string, isArray: boolean): T {
+function parseJSON<T>(text: string): T {
   const stripped = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   const cleaned = stripped.replace(/```json|```/g, '').trim();
-  const m = cleaned.match(isArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/);
-  if (!m) throw new Error('Could not parse nutrition data from AI response');
+  const m = cleaned.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error('Could not parse suggestions from AI response');
   return JSON.parse(m[0]) as T;
 }
 
@@ -21,14 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'GROQ_API_KEY is not configured on the server' });
   }
 
-  const { imageBase64, mimeType } = req.body as {
-    imageBase64?: string;
-    mimeType?: string;
-  };
-
-  if (!imageBase64 || !mimeType) {
-    return res.status(400).json({ error: 'imageBase64 and mimeType are required' });
-  }
+  const { remainingCalories, remainingProtein, remainingCarbs, remainingFat, goal, nextMeal } =
+    req.body as {
+      remainingCalories?: number;
+      remainingProtein?: number;
+      remainingCarbs?: number;
+      remainingFat?: number;
+      goal?: string;
+      nextMeal?: string;
+    };
 
   try {
     const groqRes = await fetch(GROQ_URL, {
@@ -38,27 +39,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Authorization': `Bearer ${GROQ_KEY}`,
       },
       body: JSON.stringify({
-        model: VISION_MODEL,
+        model: TEXT_MODEL,
         max_tokens: 1024,
-        temperature: 0.1,
-        reasoning_effort: 'none',
+        temperature: 0.4,
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-              },
-              {
-                type: 'text',
-                text: `Identify ALL individual food items visible in this image and provide nutritional data for each.
+            content: `Suggest 4 foods for someone tracking their diet.
 
-Return ONLY a valid JSON array, no markdown or extra text:
+Remaining macros for today:
+- Calories: ${remainingCalories} kcal
+- Protein: ${remainingProtein}g
+- Carbs: ${remainingCarbs}g
+- Fat: ${remainingFat}g
+- Goal: ${goal} (lose = weight loss, maintain = maintenance, gain = muscle gain)
+- Next meal: ${nextMeal}
+
+Return ONLY a valid JSON array of 4 suggestions. Include Indian dishes where appropriate:
 [
   {
-    "name": "food item name",
-    "estimatedGrams": estimated_portion_weight_as_number,
+    "name": "food name",
+    "reason": "one short sentence why this fits their remaining macros",
+    "servingSize": typical_serving_in_grams,
     "nutritionPer100g": {
       "calories": number,
       "protein": number,
@@ -68,14 +70,7 @@ Return ONLY a valid JSON array, no markdown or extra text:
   }
 ]
 
-Rules:
-- List each distinct food item separately (e.g. roti, dal, sabzi, rice are separate items)
-- Use authentic nutritional values for Indian dishes
-- Estimate portion weight from visual cues
-- All values must be plain numbers
-- If only one item, still return a JSON array with one element`,
-              },
-            ],
+No markdown, no extra text. All values must be plain numbers.`,
           },
         ],
       }),
@@ -88,8 +83,8 @@ Rules:
 
     const data = (await groqRes.json()) as { choices: Array<{ message: { content: string } }> };
     const text = data.choices[0].message.content;
-    return res.json(parseJSON(text, true));
+    return res.json(parseJSON(text));
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : 'Analysis failed' });
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Suggestion failed' });
   }
 }

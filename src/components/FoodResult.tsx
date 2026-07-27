@@ -1,3 +1,4 @@
+import { type MealType, MEAL_LABELS, MEAL_EMOJIS, MEAL_ORDER } from '../types';
 import type { PendingFood } from '../types';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 function scale(base: number, serving: number): number {
-  return Math.round((base * serving) / 100 * 10) / 10;
+  return Math.round(((base * serving) / 100) * 10) / 10;
 }
 
 export function FoodResult({ food, onChange, onAdd, onBack }: Props) {
@@ -23,8 +24,12 @@ export function FoodResult({ food, onChange, onAdd, onBack }: Props) {
   }
 
   function setServing(val: string) {
-    const n = parseInt(val, 10);
-    if (!isNaN(n) && n > 0) onChange({ ...food, servingSize: n });
+    const v = parseInt(val, 10);
+    if (!isNaN(v) && v > 0) onChange({ ...food, servingSize: v });
+  }
+
+  function setMeal(meal: MealType) {
+    onChange({ ...food, meal });
   }
 
   return (
@@ -48,13 +53,10 @@ export function FoodResult({ food, onChange, onAdd, onBack }: Props) {
       </div>
 
       {food.imagePreview && (
-        <img
-          src={food.imagePreview}
-          alt={food.name}
-          className="w-full h-32 object-cover rounded-lg"
-        />
+        <img src={food.imagePreview} alt={food.name} className="w-full h-32 object-cover rounded-lg" />
       )}
 
+      {/* Macros */}
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="bg-white rounded-lg p-2">
           <div className="text-xs text-blue-600 font-semibold">Protein</div>
@@ -70,6 +72,7 @@ export function FoodResult({ food, onChange, onAdd, onBack }: Props) {
         </div>
       </div>
 
+      {/* Serving adjuster */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-gray-600 shrink-0">Serving:</span>
         <div className="flex items-center gap-2 flex-1">
@@ -98,11 +101,32 @@ export function FoodResult({ food, onChange, onAdd, onBack }: Props) {
         </div>
       </div>
 
+      {/* Meal selector */}
+      <div>
+        <p className="text-xs text-gray-500 font-medium mb-2">Add to meal:</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {MEAL_ORDER.map((m) => (
+            <button
+              key={m}
+              onClick={() => setMeal(m)}
+              className={`py-2 px-1 rounded-lg text-xs font-medium border transition-all flex flex-col items-center gap-0.5 ${
+                food.meal === m
+                  ? 'border-emerald-400 bg-emerald-100 text-emerald-700'
+                  : 'border-gray-100 bg-white text-gray-500 hover:border-gray-200'
+              }`}
+            >
+              <span>{MEAL_EMOJIS[m]}</span>
+              <span>{MEAL_LABELS[m]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button
         onClick={() => onAdd(food)}
         className="w-full py-2.5 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600 transition-colors"
       >
-        Add to Today's Log
+        Add to {MEAL_LABELS[food.meal]}
       </button>
     </div>
   );

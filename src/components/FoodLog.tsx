@@ -1,4 +1,5 @@
-import type { FoodLogItem } from '../types';
+import type { FoodLogItem, MealType } from '../types';
+import { MEAL_ORDER, MEAL_LABELS, MEAL_EMOJIS } from '../types';
 
 interface Props {
   items: FoodLogItem[];
@@ -19,56 +20,85 @@ export function FoodLog({ items, onRemove, onClear }: Props) {
 
   const totalCal = items.reduce((s, i) => s + i.nutrition.calories, 0);
 
+  // Group by meal, preserving order
+  const grouped = MEAL_ORDER.reduce<Record<MealType, FoodLogItem[]>>(
+    (acc, meal) => {
+      acc[meal] = items.filter((i) => (i.meal ?? 'snack') === meal);
+      return acc;
+    },
+    {} as Record<MealType, FoodLogItem[]>,
+  );
+
+  const mealsWithItems = MEAL_ORDER.filter((m) => grouped[m].length > 0);
+
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-          Today's Log
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Today's Log</h2>
         <button
-          onClick={() => {
-            if (confirm("Clear all foods from today's log?")) onClear();
-          }}
+          onClick={() => { if (confirm("Clear all foods from today's log?")) onClear(); }}
           className="text-xs text-gray-300 hover:text-red-400 transition-colors"
         >
           Clear all
         </button>
       </div>
 
-      <div className="divide-y">
-        {items.map((item) => {
-          const time = new Date(item.addedAt).toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+      <div>
+        {mealsWithItems.map((meal) => {
+          const mealItems = grouped[meal];
+          const mealCal = mealItems.reduce((s, i) => s + i.nutrition.calories, 0);
           return (
-            <div
-              key={item.id}
-              className="px-4 py-3 flex items-start justify-between hover:bg-gray-50 transition-colors group"
-            >
-              <div className="flex-1 min-w-0 mr-3">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="font-medium text-gray-800 text-sm">{item.name}</span>
-                  <span className="text-xs text-gray-300">{time}</span>
+            <div key={meal}>
+              {/* Meal header */}
+              <div className="px-4 py-2 bg-gray-50 border-y border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{MEAL_EMOJIS[meal]}</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    {MEAL_LABELS[meal]}
+                  </span>
                 </div>
-                <div className="text-xs text-gray-400 mt-0.5">
-                  {item.servingSize}g ·{' '}
-                  <span className="text-blue-500">P:{item.nutrition.protein}g</span> ·{' '}
-                  <span className="text-amber-500">C:{item.nutrition.carbs}g</span> ·{' '}
-                  <span className="text-purple-500">F:{item.nutrition.fat}g</span>
-                </div>
+                <span className="text-xs text-gray-400 font-medium">{mealCal} kcal</span>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="font-semibold text-gray-700 text-sm">
-                  {item.nutrition.calories} kcal
-                </span>
-                <button
-                  onClick={() => onRemove(item.id)}
-                  className="text-gray-200 hover:text-red-400 transition-colors text-lg leading-none font-light group-hover:text-gray-300"
-                  title="Remove"
-                >
-                  ×
-                </button>
+
+              {/* Items in this meal */}
+              <div className="divide-y">
+                {mealItems.map((item) => {
+                  const time = new Date(item.addedAt).toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  return (
+                    <div
+                      key={item.id}
+                      className="px-4 py-3 flex items-start justify-between hover:bg-gray-50 transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0 mr-3">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-medium text-gray-800 text-sm">{item.name}</span>
+                          <span className="text-xs text-gray-300">{time}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {item.servingSize}g ·{' '}
+                          <span className="text-blue-500">P:{item.nutrition.protein}g</span> ·{' '}
+                          <span className="text-amber-500">C:{item.nutrition.carbs}g</span> ·{' '}
+                          <span className="text-purple-500">F:{item.nutrition.fat}g</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-semibold text-gray-700 text-sm">
+                          {item.nutrition.calories} kcal
+                        </span>
+                        <button
+                          onClick={() => onRemove(item.id)}
+                          className="text-gray-200 hover:text-red-400 transition-colors text-lg leading-none font-light group-hover:text-gray-300"
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

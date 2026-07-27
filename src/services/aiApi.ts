@@ -13,7 +13,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export interface ImageAnalysisResult {
+export interface ImageAnalysisItem {
   name: string;
   estimatedGrams: number;
   nutritionPer100g: {
@@ -27,7 +27,7 @@ export interface ImageAnalysisResult {
 export function analyzeImage(
   imageBase64: string,
   mimeType: string,
-): Promise<ImageAnalysisResult> {
+): Promise<ImageAnalysisItem[]> {
   return post('/api/analyze-image', { imageBase64, mimeType });
 }
 
@@ -44,4 +44,27 @@ export interface FoodSearchResult {
 
 export function searchFood(query: string): Promise<FoodSearchResult[]> {
   return post('/api/search-food', { query });
+}
+
+export interface FoodSuggestion {
+  name: string;
+  reason: string;
+  servingSize: number;
+  nutritionPer100g: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+}
+
+export function suggestFoods(params: {
+  remainingCalories: number;
+  remainingProtein: number;
+  remainingCarbs: number;
+  remainingFat: number;
+  goal: string;
+  nextMeal: string;
+}): Promise<FoodSuggestion[]> {
+  return post('/api/suggest-foods', params);
 }

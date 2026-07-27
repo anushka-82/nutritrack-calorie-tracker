@@ -1,27 +1,15 @@
 import { useState } from 'react';
 import { searchFood, type FoodSearchResult } from '../services/aiApi';
 import type { PendingFood } from '../types';
+import { defaultMeal } from '../types';
 import { FoodResult } from './FoodResult';
 
 const SUGGESTIONS = [
-  'Butter Chicken',
-  'Dal Makhani',
-  'Chicken Biryani',
-  'Roti / Chapati',
-  'Paneer Tikka',
-  'Samosa',
-  'Masala Dosa',
-  'Chole Bhature',
-  'Palak Paneer',
-  'Aloo Paratha',
-  'Idli Sambar',
-  'Rajma Chawal',
-  'Grilled Chicken',
-  'Brown Rice',
-  'Boiled Egg',
-  'Oatmeal',
-  'Banana',
-  'Greek Yogurt',
+  'Butter Chicken', 'Dal Makhani', 'Chicken Biryani', 'Roti / Chapati',
+  'Paneer Tikka', 'Samosa', 'Masala Dosa', 'Chole Bhature',
+  'Palak Paneer', 'Aloo Paratha', 'Idli Sambar', 'Rajma Chawal',
+  'Grilled Chicken', 'Brown Rice', 'Boiled Egg', 'Oatmeal',
+  'Banana', 'Greek Yogurt',
 ];
 
 function calcCalories(r: FoodSearchResult) {
@@ -65,6 +53,7 @@ export function FoodSearch({ onAdd, onError }: Props) {
       baseServingSize: r.servingSize,
       servingSize: r.servingSize,
       nutritionPer100g: r.nutritionPer100g,
+      meal: defaultMeal(),
     });
   }
 
@@ -155,11 +144,7 @@ export function FoodSearch({ onAdd, onError }: Props) {
             </button>
           ))}
           <button
-            onClick={() => {
-              setResults([]);
-              setSearched(false);
-              setQuery('');
-            }}
+            onClick={() => { setResults([]); setSearched(false); setQuery(''); }}
             className="text-xs text-gray-400 hover:text-gray-600 mt-1"
           >
             ← Search again

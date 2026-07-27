@@ -13,7 +13,12 @@ const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
 app.use(express.json({ limit: '15mb' }));
 
-async function callGroq(messages: unknown[], model: string, maxTokens = 1024, extraParams: Record<string, unknown> = {}): Promise<string> {
+async function callGroq(
+  messages: unknown[],
+  model: string,
+  maxTokens = 1024,
+  extraParams: Record<string, unknown> = {},
+): Promise<string> {
   if (!GROQ_KEY) throw new Error('GROQ_API_KEY is not set on the server');
 
   const res = await fetch(GROQ_URL, {
@@ -50,34 +55,46 @@ app.post('/api/analyze-image', async (req, res) => {
       return;
     }
 
-    const text = await callGroq([
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-          {
-            type: 'text',
-            text: `Identify the food in this image and provide nutritional data.
+    const text = await callGroq(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            {
+              type: 'text',
+              text: `Identify ALL individual food items visible in this image and provide nutritional data for each.
 
-Return ONLY valid JSON, no markdown or extra text:
-{
-  "name": "food name",
-  "estimatedGrams": estimated_portion_weight_as_number,
-  "nutritionPer100g": {
-    "calories": number,
-    "protein": number,
-    "carbs": number,
-    "fat": number
+Return ONLY a valid JSON array, no markdown or extra text:
+[
+  {
+    "name": "food item name",
+    "estimatedGrams": estimated_portion_weight_as_number,
+    "nutritionPer100g": {
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
+    }
   }
-}
+]
 
-Use authentic values for Indian dishes. Estimate portion weight from visual cues. All values must be plain numbers.`,
-          },
-        ],
-      },
-    ], VISION_MODEL, 1024, { reasoning_effort: 'none' });
+Rules:
+- List each distinct food item separately (e.g. roti, dal, sabzi, rice are separate items)
+- Use authentic nutritional values for Indian dishes
+- Estimate portion weight from visual cues
+- All values must be plain numbers
+- If only one item, still return a JSON array with one element`,
+            },
+          ],
+        },
+      ],
+      VISION_MODEL,
+      1024,
+      { reasoning_effort: 'none' },
+    );
 
-    res.json(parseJSON(text, false));
+    res.json(parseJSON(text, true));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Analysis failed' });
   }
@@ -91,10 +108,11 @@ app.post('/api/search-food', async (req, res) => {
       return;
     }
 
-    const text = await callGroq([
-      {
-        role: 'user',
-        content: `Provide nutritional information for: "${query}"
+    const text = await callGroq(
+      [
+        {
+          role: 'user',
+          content: `Provide nutritional information for: "${query}"
 
 Return ONLY a valid JSON array with 1-3 options:
 [
@@ -111,12 +129,69 @@ Return ONLY a valid JSON array with 1-3 options:
 ]
 
 Use authentic values for Indian dishes (homemade recipes). All values must be plain numbers. No markdown or extra text.`,
-      },
-    ], TEXT_MODEL);
+        },
+      ],
+      TEXT_MODEL,
+    );
 
     res.json(parseJSON(text, true));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });
+  }
+});
+
+app.post('/api/suggest-foods', async (req, res) => {
+  try {
+    const { remainingCalories, remainingProtein, remainingCarbs, remainingFat, goal, nextMeal } =
+      req.body as {
+        remainingCalories?: number;
+        remainingProtein?: number;
+        remainingCarbs?: number;
+        remainingFat?: number;
+        goal?: string;
+        nextMeal?: string;
+      };
+
+    const text = await callGroq(
+      [
+        {
+          role: 'user',
+          content: `Suggest 4 foods for someone tracking their diet.
+
+Remaining macros for today:
+- Calories: ${remainingCalories} kcal
+- Protein: ${remainingProtein}g
+- Carbs: ${remainingCarbs}g
+- Fat: ${remainingFat}g
+- Goal: ${goal}
+- Next meal: ${nextMeal}
+
+Return ONLY a valid JSON array of 4 suggestions. Include Indian dishes where appropriate:
+[
+  {
+    "name": "food name",
+    "reason": "one short sentence why this fits their remaining macros",
+    "servingSize": typical_serving_in_grams,
+    "nutritionPer100g": {
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
+    }
+  }
+]
+
+No markdown, no extra text. All values must be plain numbers.`,
+        },
+      ],
+      TEXT_MODEL,
+      1024,
+      { temperature: 0.4 },
+    );
+
+    res.json(parseJSON(text, true));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Suggestion failed' });
   }
 });
 
