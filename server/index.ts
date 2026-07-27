@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT ?? 3001;
 const GROQ_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const VISION_MODEL = 'llama-3.2-90b-vision-preview';
+const VISION_MODEL = 'qwen/qwen3.6-27b';
 const TEXT_MODEL = 'llama-3.3-70b-versatile';
 
 app.use(express.json({ limit: '15mb' }));
