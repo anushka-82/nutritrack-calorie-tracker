@@ -278,7 +278,7 @@ export function ImageUpload({ onAdd, onError }: Props) {
                           <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
                           <button
                             onClick={() => startEditing(i, item.name)}
-                            className="text-gray-300 hover:text-emerald-500 transition-colors shrink-0"
+                            className="text-emerald-400 hover:text-emerald-500 transition-colors shrink-0"
                             title="Edit name"
                           >
                             ✎
