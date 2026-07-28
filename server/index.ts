@@ -100,19 +100,56 @@ Rules:
   }
 });
 
+const OFF_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
+
+async function searchOpenFoodFacts(query: string) {
+  const params = new URLSearchParams({
+    action: 'process', search_terms: query, json: '1',
+    page_size: '10', fields: 'product_name,nutriments,serving_quantity',
+  });
+  const res = await fetch(`${OFF_URL}?${params}`, {
+    headers: { 'User-Agent': 'NutriTrack/1.0 (calorie tracker app)' },
+  });
+  if (!res.ok) return [];
+
+  const data = (await res.json()) as { products?: Record<string, unknown>[] };
+  const results = [];
+  for (const p of data.products ?? []) {
+    const n = p.nutriments as Record<string, unknown> | undefined;
+    const name = (p.product_name as string | undefined)?.trim();
+    if (!name || !n || typeof n['energy-kcal_100g'] !== 'number' || typeof n['proteins_100g'] !== 'number' || typeof n['carbohydrates_100g'] !== 'number' || typeof n['fat_100g'] !== 'number') continue;
+    const cal = Math.round(n['energy-kcal_100g'] as number);
+    if (cal <= 0 || cal > 900) continue;
+    const servingQty = parseFloat(p.serving_quantity as string);
+    results.push({
+      name, source: 'database' as const,
+      servingSize: isNaN(servingQty) || servingQty <= 0 ? 100 : Math.round(servingQty),
+      nutritionPer100g: {
+        calories: cal,
+        protein: Math.round((n['proteins_100g'] as number) * 10) / 10,
+        carbs: Math.round((n['carbohydrates_100g'] as number) * 10) / 10,
+        fat: Math.round((n['fat_100g'] as number) * 10) / 10,
+      },
+    });
+    if (results.length === 3) break;
+  }
+  return results;
+}
+
 app.post('/api/search-food', async (req, res) => {
   try {
     const { query } = req.body as { query?: string };
-    if (!query?.trim()) {
-      res.status(400).json({ error: 'query is required' });
-      return;
-    }
+    if (!query?.trim()) { res.status(400).json({ error: 'query is required' }); return; }
 
+    // Try Open Food Facts first
+    const dbResults = await searchOpenFoodFacts(query.trim()).catch(() => []);
+    if (dbResults.length > 0) { res.json(dbResults); return; }
+
+    // Fallback to Groq AI (covers Indian dishes)
     const text = await callGroq(
-      [
-        {
-          role: 'user',
-          content: `Provide nutritional information for: "${query}"
+      [{
+        role: 'user',
+        content: `Provide nutritional information for: "${query}"
 
 Return ONLY a valid JSON array with 1-3 options:
 [
@@ -129,12 +166,12 @@ Return ONLY a valid JSON array with 1-3 options:
 ]
 
 Use authentic values for Indian dishes (homemade recipes). All values must be plain numbers. No markdown or extra text.`,
-        },
-      ],
+      }],
       TEXT_MODEL,
     );
 
-    res.json(parseJSON(text, true));
+    const parsed = parseJSON<Array<{ name: string; servingSize: number; nutritionPer100g: { calories: number; protein: number; carbs: number; fat: number } }>>(text, true);
+    res.json(parsed.map((item) => ({ ...item, source: 'ai' })));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Search failed' });
   }

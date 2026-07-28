@@ -127,7 +127,18 @@ export function FoodSearch({ onAdd, onError }: Props) {
               onClick={() => selectResult(r)}
               className="w-full text-left p-3.5 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50 transition-all"
             >
-              <div className="font-semibold text-gray-800 text-sm">{r.name}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold text-gray-800 text-sm truncate">{r.name}</div>
+                {r.source === 'database' ? (
+                  <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium shrink-0">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium shrink-0">
+                    AI estimate
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-x-3">
                 <span>{r.servingSize}g serving</span>
                 <span className="text-gray-700 font-medium">{calcCalories(r)} kcal</span>

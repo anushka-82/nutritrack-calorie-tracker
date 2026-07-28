@@ -34,6 +34,7 @@ export function analyzeImage(
 export interface FoodSearchResult {
   name: string;
   servingSize: number;
+  source?: 'database' | 'ai';
   nutritionPer100g: {
     calories: number;
     protein: number;
