@@ -31,6 +31,8 @@ export function ImageUpload({ onAdd, onError }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
   const [items, setItems] = useState<PendingFood[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   function processFile(file: File) {
@@ -89,7 +91,25 @@ export function ImageUpload({ onAdd, onError }: Props) {
     setImageBase64(null);
     setItems([]);
     setSelectedIndex(null);
+    setEditingIndex(null);
     if (inputRef.current) inputRef.current.value = '';
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+    if (editingIndex === index) setEditingIndex(null);
+  }
+
+  function startEditing(index: number, currentName: string) {
+    setEditingIndex(index);
+    setEditingName(currentName);
+  }
+
+  function commitEdit(index: number) {
+    if (editingName.trim()) {
+      updateItem(index, { ...items[index], name: editingName.trim() });
+    }
+    setEditingIndex(null);
   }
 
   function updateItem(index: number, updated: PendingFood) {
@@ -235,21 +255,52 @@ export function ImageUpload({ onAdd, onError }: Props) {
               const p = Math.round((item.nutritionPer100g.protein * item.servingSize) / 100 * 10) / 10;
               const c = Math.round((item.nutritionPer100g.carbs * item.servingSize) / 100 * 10) / 10;
               const f = Math.round((item.nutritionPer100g.fat * item.servingSize) / 100 * 10) / 10;
+              const isEditing = editingIndex === i;
               return (
                 <div
                   key={i}
                   className="bg-emerald-50 border border-emerald-100 rounded-xl p-3"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <p className="font-semibold text-gray-800 text-sm">{item.name}</p>
+                    <div className="flex-1 min-w-0">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onBlur={() => commitEdit(i)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(i); if (e.key === 'Escape') setEditingIndex(null); }}
+                          className="w-full border border-emerald-300 rounded-lg px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                          autoFocus
+                        />
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-gray-800 text-sm truncate">{item.name}</p>
+                          <button
+                            onClick={() => startEditing(i, item.name)}
+                            className="text-gray-300 hover:text-emerald-500 transition-colors shrink-0"
+                            title="Edit name"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-gray-400 mt-0.5">
                         <span className="text-blue-500">P:{p}g</span> ·{' '}
                         <span className="text-amber-500">C:{c}g</span> ·{' '}
                         <span className="text-purple-500">F:{f}g</span>
                       </p>
                     </div>
-                    <span className="text-lg font-bold text-emerald-600 shrink-0">{cal} kcal</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-lg font-bold text-emerald-600">{cal} kcal</span>
+                      <button
+                        onClick={() => removeItem(i)}
+                        className="w-6 h-6 rounded-full bg-red-100 text-red-400 hover:bg-red-200 flex items-center justify-center text-xs font-bold transition-colors"
+                        title="Remove item"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
 
                   {/* Inline serving adjuster */}
