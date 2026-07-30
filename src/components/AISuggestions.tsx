@@ -18,20 +18,7 @@ function round1(n: number) {
 
 function getRemainingMeals(loggedItems: FoodLogItem[]): MealType[] {
   const loggedMeals = new Set(loggedItems.map((i) => i.meal));
-  const h = new Date().getHours();
-
-  return MEAL_ORDER.filter((m) => {
-    if (loggedMeals.has(m)) return false;
-    switch (m) {
-      case 'breakfast': return h < 11;
-      case 'lunch': return h < 15;
-      case 'snack': return h < 21;
-      case 'pre-workout': return h < 19;
-      case 'post-workout': return h < 21;
-      case 'dinner': return h < 22;
-      default: return true;
-    }
-  });
+  return MEAL_ORDER.filter((m) => !loggedMeals.has(m));
 }
 
 export function AISuggestions({ totals, goals, goal, loggedItems, onAdd, onError }: Props) {
